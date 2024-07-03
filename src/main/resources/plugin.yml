@@ -1,0 +1,5 @@
+name: nmsasmtest
+version: '${project.version}'
+main: me.acablade.nmsasm.testplugin.Main
+authors: [Acablade]
+description: lav yukseliyor
