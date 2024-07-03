@@ -37,7 +37,7 @@ craftPlayer.sendMessage("Hi there!!");
 Dont forget to register the classes such as
 
 ``` java
-NMSAsm.registerNMSClass(EntityPlayer.class);
+NMSAsm.registerNMSClass(CraftPlayer.class);
 ```
 in onEnable.
 
