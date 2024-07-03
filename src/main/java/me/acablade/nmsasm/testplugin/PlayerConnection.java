@@ -2,7 +2,7 @@ package me.acablade.nmsasm.testplugin;
 
 import me.acablade.nmsasm.NMS;
 
-@NMS("net.minecraft.server.v1_8_R3.PlayerConnection")
+@NMS
 public interface PlayerConnection {
 	
 	@NMS("sendPacket")

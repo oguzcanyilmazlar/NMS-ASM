@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.FIELD})
 public @interface NMS {
 	
-	public String value();
+	public String value() default "";
     public CallType callType() default CallType.METHOD;
     public String interfaceName() default "";
     

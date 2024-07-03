@@ -15,7 +15,7 @@ accessing entity player example:
 ``` java
 import me.acablade.nmsasm.NMS;
 
-@NMS("org.bukkit.craftbukkit.v1_8_R3.entity.CraftPlayer")
+@NMS
 public interface CraftPlayer {
 	
 	@NMS("getHandle")

@@ -8,29 +8,40 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ScanResult;
+
 public class NMSAsm {
 	
 	private static Map<Class<?>, Class<?>> registered = new HashMap<>();
 	private static Map<Class<?>, Class<?>> normalToNMS = new HashMap<>();
+	private static Map<String, Class<?>> simpleToNMSClass = new HashMap<>();
+	
+	private static ScanResult scanResult = null;
 	
 	public static Class<?> registerNMSClass(Class<?> clazz) {
+		if(scanResult == null) {
+			scanResult = new ClassGraph().enableAllInfo().acceptPackages("net.minecraft", "org.bukkit.craftbukkit").scan();
+		}
 		if(registered.containsKey(clazz)) throw new NMSException(String.format("%s is already registered", clazz.getCanonicalName()));
 		if(!clazz.isInterface()) throw new NMSException(String.format("Class(%s) should be specified as an interface", clazz.getCanonicalName()));
 		if(!clazz.isAnnotationPresent(NMS.class)) throw new NMSException(String.format("Class(%s) does not have NMS annotation", clazz.getCanonicalName()));
 
 		String clazzName = clazz.getAnnotation(NMS.class).value();
-		Class<?> wantedClass = null;
-		try {
-			wantedClass = Class.forName(clazzName);
-		} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
-			throw new NMSException(String.format("(%s) Cant find the wanted class: %s", clazzName, clazz.getCanonicalName()));
+		
+		if(clazzName.isEmpty()) {
+			clazzName = clazz.getSimpleName();
+			
 		}
+		
+		Class<?> wantedClass = getClass(clazzName);
+		System.out.println(wantedClass.getCanonicalName());
 		
 		ClassWriter writer = GeneratorAdapter.newClassWriter(clazz.getName() + "$NMSImpl", Type.getInternalName(clazz));
 		GeneratorAdapter.addField(Opcodes.ACC_PUBLIC, "handle", "Ljava/lang/Object;", null, null, writer);
@@ -53,7 +64,7 @@ public class NMSAsm {
 					Constructor<?> constructor = wantedClass.getConstructor(getParameters(clazz, method).toArray(new Class<?>[0]));
 					GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), getMethodDescriptor(method));
 			        adapter.loadThis();
-			        adapter.visitTypeInsn(Opcodes.NEW, clazzName.replace('.', '/'));
+			        adapter.visitTypeInsn(Opcodes.NEW, Type.getInternalName(wantedClass));
 			        adapter.dup();
 			        int index = adapter.getArgIndex(0);
 			        for (int i = 0; i < adapter.argumentTypes.length; ++i) {
@@ -70,7 +81,7 @@ public class NMSAsm {
 			            index += argumentType.getSize();
 			        }
 //			        adapter.loadArgs();
-			        adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, clazzName.replace('.', '/'), "<init>", Type.getConstructorDescriptor(constructor), false);
+			        adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(wantedClass), "<init>", Type.getConstructorDescriptor(constructor), false);
 			        adapter.putField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", GeneratorAdapter.OBJECT_TYPE);
 			        adapter.returnValue();
 			        adapter.endMethod();
@@ -111,7 +122,7 @@ public class NMSAsm {
 					Class<?> interfaceClazz = null;
 					Method declared = null;
 					if(!interfaceClass.isEmpty()) {
-						interfaceClazz = Class.forName(interfaceClass);
+						interfaceClazz = getClass(interfaceClass);
 						declared = interfaceClazz.getDeclaredMethod(methodName, paramList.toArray(new Class<?>[0]));
 					}else {
 						declared = wantedClass.getDeclaredMethod(methodName, paramList.toArray(new Class<?>[0]));
@@ -133,9 +144,6 @@ public class NMSAsm {
 					// TODO Auto-generated catch block
 					throw new NMSException(String.format("(%s) Cant find the wanted method: %s", method.getName(), methodName));
 				} catch (SecurityException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (ClassNotFoundException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
@@ -176,7 +184,7 @@ public class NMSAsm {
 						String interfaceClass = method.getAnnotation(NMS.class).interfaceName();
 						Class<?> field = null;
 						if(!interfaceClass.isEmpty()) {
-							Class<?> interfaceClazz = Class.forName(interfaceClass);
+							Class<?> interfaceClazz = getClass(interfaceClass);
 							field = interfaceClazz.getField(fieldName).getType();
 						}else {
 							field = wantedClass.getField(fieldName).getType();
@@ -187,9 +195,6 @@ public class NMSAsm {
 						adapter.loadArg(0);
 						adapter.visitFieldInsn(Opcodes.PUTFIELD, Type.getInternalName(wantedClass), fieldName, Type.getDescriptor(field));
 					} catch (NoSuchFieldException | SecurityException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (ClassNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
@@ -234,6 +239,23 @@ public class NMSAsm {
 		
 	}
 	
+	private static List<String> getClassesFromClassGraph(String name){
+		return scanResult.getAllClassesAsMap().keySet().stream().filter(s -> s.endsWith(name)).collect(Collectors.toList());
+	}
+	
+	private static Class<?> getClass(String name){
+		return simpleToNMSClass.computeIfAbsent(name, (t) -> {
+			List<String> classes = getClassesFromClassGraph(t);
+			if(classes.size() != 1) throw new NMSException(String.format("%s found two of classes that have the same name, please use full name instead", t));
+			try {
+				return Class.forName(classes.get(0));
+			} catch (ClassNotFoundException e) {
+				// unreachable
+				throw new NMSException(String.format("%s class not found", classes.get(0)));
+			}
+		});
+	}
+	
 	public static <T> T get(Class<T> clazz, Object... objects) {
 		
 		Class<T> clz = (Class<T>) registered.get(clazz);
@@ -266,12 +288,7 @@ public class NMSAsm {
 				continue;
 			}
 			String paramClass = param.getAnnotation(NMS.class).value();
-			try {
-				paramList.add(Class.forName(paramClass.replace('/', '.')));
-			} catch (ClassNotFoundException e) {
-				// TODO Auto-generated catch block
-				throw new NMSException(String.format("(%s@%s) Cant find the wanted class: %s", param.getName(), method.getName(), clazz.getCanonicalName()));
-			}
+			paramList.add(getClass(paramClass));
 			
 		}
 		return paramList;

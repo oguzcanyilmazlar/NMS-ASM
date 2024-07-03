@@ -3,7 +3,7 @@ package me.acablade.nmsasm.testplugin;
 import me.acablade.nmsasm.NMS;
 import me.acablade.nmsasm.NMSConstructor;
 
-@NMS("net.minecraft.server.v1_8_R3.PacketPlayOutEntityTeleport")
+@NMS("PacketPlayOutEntityTeleport")
 public interface PacketPlayOutEntityTeleport {
 	
 	@NMSConstructor
