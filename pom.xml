@@ -30,7 +30,7 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <excludes>
-                        <exclude>${groupId}/manager/REMOVEME</exclude>
+                        <exclude>me/acablade/nmsasm/testplugin/**/*.*</exclude>
                     </excludes>
                 </configuration>
             </plugin>
