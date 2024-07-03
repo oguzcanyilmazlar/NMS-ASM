@@ -1,5 +1,7 @@
 [![](https://jitpack.io/v/oguzcanyilmazlar/NMS-ASM.svg)](https://jitpack.io/#oguzcanyilmazlar/NMS-ASM)
 
+(jitpack build does NOT contain the examples and the plugin.yml, don't worry)
+
 made for fun
 
 grabbed main classes from Revxrsal/EventBus (GeneratedClassDefiner, GeneratorAdapter, Method)
