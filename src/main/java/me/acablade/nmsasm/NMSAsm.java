@@ -15,37 +15,6 @@ import org.objectweb.asm.Type;
 
 public class NMSAsm {
 	
-	
-	public Object handle;
-	
-	public NMSAsm(Object handle) {
-		this.handle = handle;
-	}
-	
-	public Object getHandle() {
-		return this.handle;
-	}
-	
-	
-	public NMSAsm(Object a, Object b) {
-		this.handle = new Test((Test)a, (Test)b);
-	}
-	
-	public void test(Object xd) {
-		this.handle = new Test((Test)xd, (Test)xd);
-	}
-	
-	public static void test2(Class clazz) {
-		
-	}
-	
-	public static class Test {
-		public Test(Test a, Test b) {
-			
-		}
-	}
-	
-	
 	private static Map<Class<?>, Class<?>> registered = new HashMap<>();
 	private static Map<Class<?>, Class<?>> normalToNMS = new HashMap<>();
 	
