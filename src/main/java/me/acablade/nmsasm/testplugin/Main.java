@@ -47,12 +47,12 @@ public class Main extends JavaPlugin implements Listener{
 		PlayerConnection playerConnection = NMSAsm.get(PlayerConnection.class, entityPlayer.playerConnection());
 		craftPlayer.sendMessage(entityPlayer.playerConnection().toString());
 		ChatComponentText comp = NMSAsm.get(ChatComponentText.class);
-		comp.construct("deniyom test");
+		comp.construct("Testing inventory");
 		PacketPlayOutOpenWindow window = NMSAsm.get(PacketPlayOutOpenWindow.class);
 		window.constructor(entityPlayer.containerCounter(), "minecraft:chest", comp.getHandle(), 27);
 		PacketPlayOutChat chat = NMSAsm.get(PacketPlayOutChat.class);
 		chat.constructor(null, (byte) 1);
-		chat.components(TextComponent.fromLegacyText("deniyom kanki"));
+		chat.components(TextComponent.fromLegacyText("Testing chat"));
 		playerConnection.sendPacket(chat.getHandle());
 		
 		Bukkit.getScheduler().runTaskLater(this, () -> playerConnection.sendPacket(window.getHandle()), 20);
