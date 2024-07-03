@@ -1,3 +1,5 @@
+[![](https://jitpack.io/v/oguzcanyilmazlar/NMS-ASM.svg)](https://jitpack.io/#oguzcanyilmazlar/NMS-ASM)
+
 made for fun
 
 grabbed main classes from Revxrsal/EventBus (GeneratedClassDefiner, GeneratorAdapter, Method)
