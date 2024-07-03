@@ -2,6 +2,8 @@ made for fun
 
 grabbed main classes from Revxrsal/EventBus (GeneratedClassDefiner, GeneratorAdapter, Method)
 
+spaghetti code, i know.
+
 accessing entity player example:
 
 <h5 a><strong><code>CraftPlayer.java</code></strong></h5>
