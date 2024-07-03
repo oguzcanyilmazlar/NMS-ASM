@@ -31,6 +31,7 @@
                     <target>${java.version}</target>
                     <excludes>
                         <exclude>me/acablade/nmsasm/testplugin/**/*.*</exclude>
+                        <exclude>**/*.yml</exclude>
                     </excludes>
                 </configuration>
             </plugin>
@@ -72,6 +73,9 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <excludes>
+		          <exclude>**/plugin.yml</exclude>
+		        </excludes>
             </resource>
         </resources>
     </build>
