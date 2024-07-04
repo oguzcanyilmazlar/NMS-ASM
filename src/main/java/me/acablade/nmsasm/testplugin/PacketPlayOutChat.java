@@ -12,10 +12,10 @@ public interface PacketPlayOutChat {
 	@NMSConstructor
 	public void constructor(@NMS("IChatBaseComponent") Object baseComponent, byte b0);
 	
-	@NMS(callType = CallType.FIELD, value = "components")
+	@NMS(callType = CallType.FIELD)
 	public void components(BaseComponent[] components);
 	
-	@NMS(callType = CallType.FIELD, value = "components")
+	@NMS(callType = CallType.FIELD)
 	public BaseComponent[] components();
 	
 	public Object getHandle();
