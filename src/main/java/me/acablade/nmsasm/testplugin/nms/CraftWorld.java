@@ -1,4 +1,4 @@
-package me.acablade.nmsasm.testplugin;
+package me.acablade.nmsasm.testplugin.nms;
 
 import me.acablade.nmsasm.NMS;
 
@@ -6,6 +6,6 @@ import me.acablade.nmsasm.NMS;
 public interface CraftWorld {
 	
 	@NMS("getHandle")
-	public Object getHandle();
+	public World getHandle();
 	
 }

@@ -1,6 +1,5 @@
 package me.acablade.nmsasm;
 
-import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -46,7 +45,7 @@ public class NMSAsm {
 		}
 		
 		Class<?> wantedClass = getClass(clazzName);
-		System.out.println(wantedClass.getCanonicalName());
+		normalToNMS.put(clazz, wantedClass);
 		
 		ClassWriter writer = GeneratorAdapter.newClassWriter(clazz.getName() + "$NMSImpl", Type.getInternalName(clazz));
 		GeneratorAdapter.addField(Opcodes.ACC_PUBLIC, "handle", "Ljava/lang/Object;", null, null, writer);
@@ -59,20 +58,11 @@ public class NMSAsm {
 				try {
 					
 					Constructor<?> constructor = wantedClass.getConstructor(getParameters(clazz, method).toArray(new Class<?>[0]));
-					GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), getMethodDescriptor(method));
+					GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
 			        adapter.loadThis();
 			        adapter.visitTypeInsn(Opcodes.NEW, Type.getInternalName(wantedClass));
 			        adapter.dup();
-			        int index = adapter.getArgIndex(0);
-			        for (int i = 0; i < adapter.argumentTypes.length; ++i) {
-			            Type argumentType = adapter.argumentTypes[i];
-			            Parameter param = constructor.getParameters()[i];
-			            adapter.loadInsn(argumentType, index);
-			            if(!Type.getType(param.getType()).equals(argumentType)) {
-			            	adapter.checkCast(Type.getType(param.getType()));
-			            }
-			            index += argumentType.getSize();
-			        }
+			        loadArgs(adapter, constructor);
 			        adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(wantedClass), "<init>", Type.getConstructorDescriptor(constructor), false);
 			        adapter.putField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", GeneratorAdapter.OBJECT_TYPE);
 			        adapter.returnValue();
@@ -135,7 +125,7 @@ public class NMSAsm {
 					adapter.loadThis();
 					adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
 					adapter.checkCast(Type.getType(wantedClass));
-					adapter.loadArgs();
+					loadArgs(adapter, declared);
 					adapter.invokeVirtual(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(declared));
 				} catch (NoSuchMethodException e) {
 					// TODO Auto-generated catch block
@@ -162,7 +152,7 @@ public class NMSAsm {
 						// FIND BY NAME
 						declared = wantedClass.getDeclaredMethod(methodName, paramList.toArray(new Class<?>[0]));
 					}
-					adapter.loadArg(0);
+					loadArgs(adapter, declared);
 					adapter.invokeStatic(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(declared));
 				} catch (NoSuchMethodException e) {
 					// TODO Auto-generated catch block
@@ -190,7 +180,7 @@ public class NMSAsm {
 						adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
 						adapter.checkCast(Type.getType(wantedClass));
 						adapter.loadArg(0);
-						adapter.visitFieldInsn(Opcodes.PUTFIELD, Type.getInternalName(wantedClass), fieldName, Type.getDescriptor(field));
+						adapter.putField(Type.getType(wantedClass), fieldName, Type.getType(field));
 					} catch (NoSuchFieldException | SecurityException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -221,6 +211,47 @@ public class NMSAsm {
 				
 				
 				
+			} else if(callType == CallType.STATIC_FIELD) {
+				GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
+				String fieldName = method.getAnnotation(NMS.class).value();
+				if(method.getReturnType() == Void.TYPE) {
+					// SETTER
+					try {
+						Class<?> field = fieldName.isEmpty() ?
+								getFieldByType(wantedClass, Type.getDescriptor(method.getParameters()[0].getType())).getType() :
+								wantedClass.getField(fieldName).getType();
+						
+						adapter.loadThis();
+						
+						adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
+						adapter.checkCast(Type.getType(wantedClass));
+						adapter.loadArg(0);
+						adapter.putStatic(Type.getType(wantedClass), clazzName, Type.getType(field));
+					} catch (NoSuchFieldException | SecurityException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					
+					
+				}else {
+					// GETTER
+					try {
+						Field field = fieldName.isEmpty() ? 
+								getFieldByType(wantedClass, Type.getDescriptor(normalToNMS.containsKey(method.getReturnType()) ? normalToNMS.get(method.getReturnType()) : method.getReturnType())) :
+								wantedClass.getField(fieldName);
+						
+						adapter.loadThis();
+						adapter.getStatic(Type.getType(wantedClass), field.getName(), Type.getType(field.getType()));
+					} catch (NoSuchFieldException | SecurityException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+				
+				adapter.returnValue();
+				adapter.visitMaxs(20, 20);
+				adapter.endMethod();
 			}
 			
 		}
@@ -230,7 +261,7 @@ public class NMSAsm {
 		Class clz = GeneratedClassDefiner.INSTANCE
 				.define(clazz.getClassLoader(), clazz.getName() + "$NMSImpl", writer.toByteArray());
 		registered.put(clazz, clz);
-		normalToNMS.put(clazz, wantedClass);
+		
 		
 		return clz;
 		
@@ -253,6 +284,32 @@ public class NMSAsm {
 		if(list.size() == 0) throw new NMSException(String.format("No field found with the descriptor %s in class \"%s\"", descriptor, clazz.getCanonicalName()));
 		if(list.size() != 1) throw new NMSException(String.format("Found more than one field with the descriptor %s in class \"%s\"", descriptor, clazz.getCanonicalName()));
 		return list.get(0).loadClassAndGetField();
+	}
+	
+	private static void loadArgs(GeneratorAdapter adapter, Method method) {
+		int index = adapter.getArgIndex(0);
+		for (int i = 0; i < adapter.argumentTypes.length; ++i) {
+            Type argumentType = adapter.argumentTypes[i];
+            Parameter param = method.getParameters()[i];
+            adapter.loadInsn(argumentType, index);
+            if(!Type.getType(param.getType()).equals(argumentType)) {
+            	adapter.checkCast(Type.getType(param.getType()));
+            }
+            index += argumentType.getSize();
+        }
+	}
+	
+	private static void loadArgs(GeneratorAdapter adapter, Constructor<?> method) {
+		int index = adapter.getArgIndex(0);
+		for (int i = 0; i < adapter.argumentTypes.length; ++i) {
+            Type argumentType = adapter.argumentTypes[i];
+            Parameter param = method.getParameters()[i];
+            adapter.loadInsn(argumentType, index);
+            if(!Type.getType(param.getType()).equals(argumentType)) {
+            	adapter.checkCast(Type.getType(param.getType()));
+            }
+            index += argumentType.getSize();
+        }
 	}
 	
 	private static List<String> getClassesFromClassGraph(String name){
@@ -290,7 +347,7 @@ public class NMSAsm {
 	private static Class<?> getClass(String name){
 		return simpleToNMSClass.computeIfAbsent(name, (t) -> {
 			List<String> classes = getClassesFromClassGraph(t);
-			if(classes.size() == 0) throw new NMSException(String.format("%s found zero classes", t));
+			if(classes.size() == 0) throw new NMSException(String.format("%s found zero classes", name));
 			if(classes.size() != 1) throw new NMSException(String.format("%s found two or more of classes that have the same name, please use full name instead (%s)", name, String.join(", ", classes)));
 			try {
 				return Class.forName(classes.get(0));
@@ -302,7 +359,7 @@ public class NMSAsm {
 	}
 	
 	public static <T> T get(Class<T> clazz, Object... objects) {
-		
+		if(!registered.containsKey(clazz)) throw new NMSException(String.format("Class (%s) is not registered.", clazz.getCanonicalName()));
 		Class<T> clz = (Class<T>) registered.get(clazz);
 		
 		for(Constructor constructor : clz.getConstructors()) {
@@ -357,19 +414,15 @@ public class NMSAsm {
 	      
 	    }
 	    stringBuilder.append(')');
-	    AnnotatedType type = method.getAnnotatedReturnType();
-	    if(!method.getAnnotatedReturnType().isAnnotationPresent(NMS.class)) {
-	    	
-	    	if(normalToNMS.containsKey(method.getReturnType())) {
-    			appendDescriptor(normalToNMS.get(method.getReturnType()), stringBuilder);
-			}else {
-				appendDescriptor(method.getReturnType(), stringBuilder);
-			}
-	    	
-	    } else {
-	    	NMS nms = type.getAnnotation(NMS.class);
-	    	stringBuilder.append('L').append(Type.getInternalName(getClass(nms.value()))).append(';');
-	    }
+	    
+	    Class<?> returnClass = method.getReturnType();
+	    
+	    if(normalToNMS.containsKey(returnClass)) {
+	    	appendDescriptor(normalToNMS.get(returnClass), stringBuilder);
+		}else {
+			appendDescriptor(returnClass, stringBuilder);
+		}
+	    
 	    return stringBuilder.toString();
 	  }
 	

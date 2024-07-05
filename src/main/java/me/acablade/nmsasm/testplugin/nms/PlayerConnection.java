@@ -1,13 +1,11 @@
-package me.acablade.nmsasm.testplugin;
+package me.acablade.nmsasm.testplugin.nms;
 
 import me.acablade.nmsasm.NMS;
 
-@NMS("nms.PlayerConnection")
+@NMS
 public interface PlayerConnection {
 	
 	@NMS
 	public void sendPacket(@NMS("nms.Packet") Object packet);
-	
-	public Object getHandle();
 	
 }

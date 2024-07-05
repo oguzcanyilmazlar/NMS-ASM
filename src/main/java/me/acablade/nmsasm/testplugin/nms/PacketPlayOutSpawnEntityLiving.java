@@ -1,4 +1,4 @@
-package me.acablade.nmsasm.testplugin;
+package me.acablade.nmsasm.testplugin.nms;
 
 import me.acablade.nmsasm.NMS;
 import me.acablade.nmsasm.NMSConstructor;
@@ -7,7 +7,7 @@ import me.acablade.nmsasm.NMSConstructor;
 public interface PacketPlayOutSpawnEntityLiving {
 	
 	@NMSConstructor
-	public void create(@NMS("net.minecraft.server.v1_8_R3.EntityLiving") Object entity);
+	public void create(@NMS("nms.EntityLiving") Object entity);
 	
 	public Object getHandle();
 	
