@@ -89,8 +89,7 @@ public class Main extends JavaPlugin implements Listener{
 			enderDragon.pos(location.getX(), location.getY(), location.getZ());
 			entityLiving = NMSAsm.get(EntityLiving.class, enderDragon.getHandle());
 			PacketPlayOutSpawnEntityv1_20 spawnPacket = NMSAsm.get(PacketPlayOutSpawnEntityv1_20.class);
-			System.out.println(enderDragon.getHandle().getClass().getCanonicalName());
-			spawnPacket.create(NMSAsm.get(Entity.class, enderDragon.getHandle()).getHandle());
+			spawnPacket.create(NMSAsm.get(Entity.class, enderDragon.getHandle()));
 			packetToSend = spawnPacket.getHandle();
 		} else if (version >= 17) {
 			EntityEnderDragonv1_17 enderDragon = NMSAsm.get(EntityEnderDragonv1_17.class);
@@ -98,7 +97,7 @@ public class Main extends JavaPlugin implements Listener{
 			enderDragon.pos(location.getX(), location.getY(), location.getZ());
 			entityLiving = NMSAsm.get(EntityLiving.class, enderDragon.getHandle());
 			PacketPlayOutSpawnEntityLiving spawnPacket = NMSAsm.get(PacketPlayOutSpawnEntityLiving.class);
-			spawnPacket.create(entityLiving.getHandle());
+			spawnPacket.create(entityLiving);
 			packetToSend = spawnPacket.getHandle();
 		} else {
 			EntityEnderDragonv1_8 enderDragon = NMSAsm.get(EntityEnderDragonv1_8.class);
@@ -106,14 +105,14 @@ public class Main extends JavaPlugin implements Listener{
 			enderDragon.pos(location.getX(), location.getY(), location.getZ());
 			entityLiving = NMSAsm.get(EntityLiving.class, enderDragon.getHandle());
 			PacketPlayOutSpawnEntityLiving spawnPacket = NMSAsm.get(PacketPlayOutSpawnEntityLiving.class);
-			spawnPacket.create(entityLiving.getHandle());
+			spawnPacket.create(entityLiving);
 			packetToSend = spawnPacket.getHandle();
 		}
 		
 		CraftPlayer craftPlayer = NMSAsm.get(CraftPlayer.class, player);
-		EntityPlayer entityPlayer = NMSAsm.get(EntityPlayer.class, craftPlayer.getHandle());
+		EntityPlayer entityPlayer = craftPlayer.getHandle();
 		
-		PlayerConnection playerConnection = NMSAsm.get(PlayerConnection.class, entityPlayer.playerConnection());
+		PlayerConnection playerConnection = entityPlayer.playerConnection();
 		playerConnection.sendPacket(packetToSend);
 		
 	}
@@ -124,7 +123,7 @@ public class Main extends JavaPlugin implements Listener{
 		Player player = event.getPlayer();
 		
 		spawnEnderDragon(version, player.getLocation(), player);
-//
+
 //		CraftPlayer craftPlayer = NMSAsm.get(CraftPlayer.class, player);
 //		craftPlayer.sendMessage("test test");
 //		EntityPlayer entityPlayer = NMSAsm.get(EntityPlayer.class, craftPlayer.getHandle());

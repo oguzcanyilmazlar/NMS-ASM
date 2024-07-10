@@ -7,7 +7,7 @@ import me.acablade.nmsasm.NMSConstructor;
 public interface PacketPlayOutSpawnEntityLiving {
 	
 	@NMSConstructor
-	public void create(@NMS("nms.EntityLiving") Object entity);
+	public void create(EntityLiving entity);
 	
 	public Object getHandle();
 	

@@ -22,6 +22,11 @@ import io.github.classgraph.MethodInfoList;
 import io.github.classgraph.ScanResult;
 
 public class NMSAsm {
+//	  adapter.visitTypeInsn(Opcodes.NEW, Type.getInternalName(wantedClass));
+//    adapter.dup();
+//    loadArgs(adapter, constructor);
+//    adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(wantedClass), "<init>", Type.getConstructorDescriptor(constructor), false);
+	
 	
 	private static Map<Class<?>, Class<?>> registered = new HashMap<>();
 	private static Map<Class<?>, Class<?>> normalToNMS = new HashMap<>();
@@ -48,45 +53,22 @@ public class NMSAsm {
 		normalToNMS.put(clazz, wantedClass);
 		
 		ClassWriter writer = GeneratorAdapter.newClassWriter(clazz.getName() + "$NMSImpl", Type.getInternalName(clazz));
+		
+		// add public Object handle;
 		GeneratorAdapter.addField(Opcodes.ACC_PUBLIC, "handle", "Ljava/lang/Object;", null, null, writer);
 
-		
 		GeneratorAdapter.writeConstructor(clazz, writer);
 		GeneratorAdapter.writeEmptyConstructor(clazz, writer);
 		for(Method method: clazz.getMethods()) {
 			if(method.isAnnotationPresent(NMSConstructor.class)) {
-				try {
-					
-					Constructor<?> constructor = wantedClass.getConstructor(getParameters(clazz, method).toArray(new Class<?>[0]));
-					GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
-			        adapter.loadThis();
-			        adapter.visitTypeInsn(Opcodes.NEW, Type.getInternalName(wantedClass));
-			        adapter.dup();
-			        loadArgs(adapter, constructor);
-			        adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(wantedClass), "<init>", Type.getConstructorDescriptor(constructor), false);
-			        adapter.putField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", GeneratorAdapter.OBJECT_TYPE);
-			        adapter.returnValue();
-			        adapter.endMethod();
-			        
-			        
-				} catch (NoSuchMethodException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (SecurityException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				createConstructorMethod(writer, method, wantedClass, clazz);
 				continue;
 			}
 			
 			if(!method.isAnnotationPresent(NMS.class)) {
 				
 				if(method.getName().equals("getHandle") && method.getReturnType().equals(Object.class)) {
-					GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, "getHandle", Type.getMethodDescriptor(method));
-					adapter.loadThis();
-					adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
-					adapter.returnValue();
-					adapter.endMethod();
+					createGetHandleMethod(writer, clazz, method);
 				}
 				
 				continue;
@@ -94,72 +76,36 @@ public class NMSAsm {
 			
 			NMS nmsAnnotation = method.getAnnotation(NMS.class);
 			
+			String nmsMethodName = nmsAnnotation.value();
+			
 			CallType callType = nmsAnnotation.callType();
 		
 					
 			if(callType == CallType.METHOD) {
 				GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
-				String methodName = nmsAnnotation.value();
-				
-				if(methodName.isEmpty()) {
-					
-				}
 				
 				List<Class<?>> paramList = getParameters(clazz, method);
-				try {
-					// ugly asf
-					String interfaceClass = nmsAnnotation.interfaceName().isEmpty() ?
-							(!nmsAnnotation.interfaceClass().equals(Object.class) ? normalToNMS.get(nmsAnnotation.interfaceClass()).getCanonicalName() : "") :
-								nmsAnnotation.interfaceName();
-					
-					Method declared = null;
-					if(methodName.isEmpty()) {
-						// FIND BY DESCRIPTOR
-						String descriptor = getMethodDescriptor(method);
-						declared = getMethodByDescriptor(interfaceClass.isEmpty() ? wantedClass : getClass(interfaceClass), descriptor);
-					}else {
-						// FIND BY NAME
-						declared = (interfaceClass.isEmpty() ? wantedClass : getClass(interfaceClass)).getDeclaredMethod(methodName, paramList.toArray(new Class<?>[0]));
-					}
-					
-					adapter.loadThis();
-					adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
-					adapter.checkCast(Type.getType(wantedClass));
-					loadArgs(adapter, declared);
-					adapter.invokeVirtual(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(declared));
-				} catch (NoSuchMethodException e) {
-					// TODO Auto-generated catch block
-					throw new NMSException(String.format("(%s) Cant find the wanted method: %s", method.getName(), methodName));
-				} catch (SecurityException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				adapter.returnValue();
-				adapter.visitMaxs(20, 20);
-				adapter.endMethod();
+				Class<?> interfaceClass = getMethodInterface(nmsAnnotation);
+				Class<?> finalClass = interfaceClass != null ? interfaceClass : wantedClass;
+				Method declared = getWantedMethod(method, nmsMethodName, finalClass, paramList.toArray(new Class<?>[0]));
+				createMethod(adapter, clazz, finalClass, declared, method.getReturnType());
 			} else if(callType == CallType.STATIC_METHOD) {
 				GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
-				String methodName = nmsAnnotation.value();
 				List<Class<?>> paramList = getParameters(clazz, method);
-				try {
-					Method declared = null;
-					
-					if(methodName.isEmpty()) {
-						// FIND BY DESCRIPTOR
-						String descriptor = getMethodDescriptor(method);
-						declared = getMethodByDescriptor(wantedClass, descriptor);
-					} else {
-						// FIND BY NAME
-						declared = wantedClass.getDeclaredMethod(methodName, paramList.toArray(new Class<?>[0]));
-					}
-					loadArgs(adapter, declared);
-					adapter.invokeStatic(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(declared));
-				} catch (NoSuchMethodException e) {
-					// TODO Auto-generated catch block
-					throw new NMSException(String.format("(%s) Cant find the wanted method: %s", method.getName(), methodName));
-				} catch (SecurityException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				
+				Type returnImplType = getImplType(method.getReturnType());
+				
+				
+				Method declared = getWantedMethod(method, nmsMethodName, wantedClass, paramList.toArray(new Class<?>[0]));
+				if(normalToNMS.containsKey(method.getReturnType())) {
+					adapter.newInstance(returnImplType);
+					adapter.dup();
+				}
+				loadArgs(adapter, declared);
+				adapter.invokeStatic(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(declared));
+				if(normalToNMS.containsKey(method.getReturnType())) {
+					// new World$NMSImpl(method);
+					adapter.invokeConstructor(returnImplType, new me.acablade.nmsasm.Method("<init>", "(Ljava/lang/Object;)V"));
 				}
 				adapter.returnValue();
 				adapter.visitMaxs(20, 20);
@@ -168,40 +114,36 @@ public class NMSAsm {
 				
 			} else if(callType == CallType.FIELD) {
 				GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
-				String fieldName = method.getAnnotation(NMS.class).value();
+				String fieldName = nmsMethodName;
+				Field field = getWantedField(wantedClass, method, fieldName);
+				
+				Type implType = getImplType(clazz);
+				
 				if(method.getReturnType() == Void.TYPE) {
 					// SETTER
-					try {
-						Class<?> field = fieldName.isEmpty() ?
-								getFieldByType(wantedClass, Type.getDescriptor(method.getParameters()[0].getType())).getType() :
-								wantedClass.getField(fieldName).getType();
-						
-						adapter.loadThis();
-						adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
-						adapter.checkCast(Type.getType(wantedClass));
-						adapter.loadArg(0);
-						adapter.putField(Type.getType(wantedClass), fieldName, Type.getType(field));
-					} catch (NoSuchFieldException | SecurityException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					
-					
-					
+					adapter.loadThis();
+					adapter.getField(implType, "handle", GeneratorAdapter.OBJECT_TYPE);
+					adapter.checkCast(Type.getType(wantedClass));
+					adapter.loadArg(0);
+					adapter.putField(Type.getType(wantedClass), fieldName, Type.getType(field.getType()));
 				}else {
 					// GETTER
-					try {
-						Field field = fieldName.isEmpty() ? 
-								getFieldByType(wantedClass, Type.getDescriptor(normalToNMS.containsKey(method.getReturnType()) ? normalToNMS.get(method.getReturnType()) : method.getReturnType())) :
-								wantedClass.getField(fieldName);
-						
-						adapter.loadThis();
-						adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
-						adapter.checkCast(Type.getType(wantedClass));
-						adapter.getField(Type.getType(wantedClass), field.getName(), Type.getType(field.getType()));
-					} catch (NoSuchFieldException | SecurityException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+					
+					Type returnImplType = getImplType(method.getReturnType());
+					
+					if(normalToNMS.containsKey(method.getReturnType())) {
+						adapter.newInstance(returnImplType);
+						adapter.dup();
+					}
+					
+					adapter.loadThis();
+					
+					
+					adapter.getField(implType, "handle", GeneratorAdapter.OBJECT_TYPE);
+					adapter.checkCast(Type.getType(wantedClass));
+					adapter.getField(Type.getType(wantedClass), field.getName(), Type.getType(field.getType()));
+					if(normalToNMS.containsKey(method.getReturnType())) {
+						adapter.invokeConstructor(returnImplType, new me.acablade.nmsasm.Method("<init>", "(Ljava/lang/Object;)V"));
 					}
 				}
 				
@@ -213,40 +155,40 @@ public class NMSAsm {
 				
 			} else if(callType == CallType.STATIC_FIELD) {
 				GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
-				String fieldName = method.getAnnotation(NMS.class).value();
+				String fieldName = nmsMethodName;
+				
+				Field field = getWantedField(wantedClass, method, fieldName);
+				
+				Type implType = getImplType(clazz);
+				
 				if(method.getReturnType() == Void.TYPE) {
 					// SETTER
-					try {
-						Class<?> field = fieldName.isEmpty() ?
-								getFieldByType(wantedClass, Type.getDescriptor(method.getParameters()[0].getType())).getType() :
-								wantedClass.getField(fieldName).getType();
-						
-						adapter.loadThis();
-						
-						adapter.getField(Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl"), "handle", Type.getObjectType("java/lang/Object"));
-						adapter.checkCast(Type.getType(wantedClass));
-						adapter.loadArg(0);
-						adapter.putStatic(Type.getType(wantedClass), clazzName, Type.getType(field));
-					} catch (NoSuchFieldException | SecurityException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
+					adapter.loadThis();
 					
+					adapter.getField(implType, "handle", GeneratorAdapter.OBJECT_TYPE);
+					adapter.checkCast(Type.getType(wantedClass));
+					adapter.loadArg(0);
+					adapter.putStatic(Type.getType(wantedClass), clazzName, Type.getType(field.getType()));
 					
 					
 				}else {
 					// GETTER
-					try {
-						Field field = fieldName.isEmpty() ? 
-								getFieldByType(wantedClass, Type.getDescriptor(normalToNMS.containsKey(method.getReturnType()) ? normalToNMS.get(method.getReturnType()) : method.getReturnType())) :
-								wantedClass.getField(fieldName);
-						
-						adapter.loadThis();
-						adapter.getStatic(Type.getType(wantedClass), field.getName(), Type.getType(field.getType()));
-					} catch (NoSuchFieldException | SecurityException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+					
+					
+					Type returnImplType = getImplType(method.getReturnType());
+					
+					// weird issue with this where it doesnt matter if it implements the interface, can just return the class. (jvm fuckery)
+					if(normalToNMS.containsKey(method.getReturnType())) {
+						adapter.newInstance(returnImplType);
+						adapter.dup();
 					}
+					adapter.getStatic(Type.getType(wantedClass), field.getName(), Type.getType(field.getType()));
+					if(normalToNMS.containsKey(method.getReturnType())) {
+						adapter.invokeConstructor(returnImplType, new me.acablade.nmsasm.Method("<init>", "(Ljava/lang/Object;)V"));
+					}
+				
+					
+					
 				}
 				
 				adapter.returnValue();
@@ -258,7 +200,7 @@ public class NMSAsm {
 		
 		writer.visitEnd();
 		
-		Class clz = GeneratedClassDefiner.INSTANCE
+		Class<?> clz = GeneratedClassDefiner
 				.define(clazz.getClassLoader(), clazz.getName() + "$NMSImpl", writer.toByteArray());
 		registered.put(clazz, clz);
 		
@@ -266,6 +208,139 @@ public class NMSAsm {
 		return clz;
 		
 		
+	}
+	
+	private static Type getImplType(Class<?> clazz) {
+		return Type.getObjectType(Type.getInternalName(clazz) + "$NMSImpl");
+	}
+	
+	private static Field getWantedField(Class<?> wantedClass, Method currentMethod, String fieldName) {
+		
+
+		Field field = null;
+		
+		
+		if(fieldName.isEmpty()) {
+			Class<?> descriptor = currentMethod.getReturnType();
+			if(normalToNMS.containsKey(currentMethod.getReturnType())) {
+				descriptor = normalToNMS.get(currentMethod.getReturnType());
+			}
+			try {
+				field = getFieldByType(wantedClass, Type.getDescriptor(descriptor));
+			} catch (NoSuchFieldException | SecurityException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			try {
+				field = wantedClass.getField(fieldName);
+			} catch (NoSuchFieldException | SecurityException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		
+		return field;
+	}
+	
+	private static Class<?> getMethodInterface(NMS nmsAnnotation) {
+		String nmsAnnotationInterface = nmsAnnotation.interfaceName();
+		Class<?> nmsAnnotationInterfaceClass = nmsAnnotation.interfaceClass();
+		
+		String interfaceClass = "";
+		
+		if(nmsAnnotationInterface.isEmpty()) {
+			if(!nmsAnnotationInterfaceClass.equals(Object.class)) {
+				interfaceClass = normalToNMS.get(nmsAnnotationInterfaceClass).getCanonicalName();
+			}
+		} else {
+			interfaceClass = nmsAnnotationInterface;
+		}
+		
+		if(interfaceClass.isEmpty()) return null;
+		
+		return getClass(interfaceClass);
+	}
+	
+	private static Method getWantedMethod(Method currentMethod, String wantedMethodName, Class<?> wantedClass, Class<?>[] params) {
+		Method declared = null;
+		
+		if(wantedMethodName.isEmpty()) {
+			// FIND BY DESCRIPTOR
+			String descriptor = getMethodDescriptor(currentMethod);
+			declared = getMethodByDescriptor(wantedClass, descriptor);
+		} else {
+			// FIND BY NAME
+			try {
+				declared = wantedClass.getDeclaredMethod(wantedMethodName, params);
+			} catch (NoSuchMethodException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (SecurityException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		return declared;
+	}
+	
+	private static void createMethod(GeneratorAdapter adapter, Class<?> currentClass, Class<?> wantedClass, Method wantedMethod, Class<?> returnType) {
+		
+		Type implType = getImplType(returnType);
+
+		if(normalToNMS.containsKey(returnType)) {
+			adapter.newInstance(implType);
+			adapter.dup();
+		}
+		adapter.loadThis();
+		
+		adapter.getField(getImplType(currentClass), "handle", GeneratorAdapter.OBJECT_TYPE);
+		adapter.checkCast(Type.getType(wantedClass));
+		loadArgs(adapter, wantedMethod);
+		adapter.invokeVirtual(Type.getType(wantedClass), me.acablade.nmsasm.Method.getMethod(wantedMethod));
+		if(normalToNMS.containsKey(returnType)) {
+			// new World$NMSImpl(method);
+			adapter.invokeConstructor(implType, new me.acablade.nmsasm.Method("<init>", "(Ljava/lang/Object;)V"));
+		}
+		adapter.returnValue();
+		adapter.visitMaxs(20, 20);
+		adapter.endMethod();
+		
+	}
+	
+	
+	private static void createConstructorMethod(ClassWriter writer, Method method, Class<?> wantedClass, Class<?> currentClass) {
+		try {
+			
+			
+			Constructor<?> constructor = wantedClass.getConstructor(getParameters(currentClass, method).toArray(new Class<?>[0]));
+			GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, method.getName(), Type.getMethodDescriptor(method));
+	        adapter.loadThis();
+	        adapter.visitTypeInsn(Opcodes.NEW, Type.getInternalName(wantedClass));
+	        adapter.dup();
+	        loadArgsForConstructor(adapter, constructor);
+	        adapter.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(wantedClass), "<init>", Type.getConstructorDescriptor(constructor), false);
+	        adapter.putField(getImplType(currentClass), "handle", GeneratorAdapter.OBJECT_TYPE);
+	        adapter.returnValue();
+	        adapter.endMethod();
+	        
+	        
+		} catch (NoSuchMethodException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	private static void createGetHandleMethod(ClassWriter writer, Class<?> clazz, Method method) {
+		GeneratorAdapter adapter = GeneratorAdapter.newMethodGenerator(writer, "getHandle", Type.getMethodDescriptor(method));
+		adapter.loadThis();
+		adapter.getField(getImplType(clazz), "handle", GeneratorAdapter.OBJECT_TYPE);
+		adapter.returnValue();
+		adapter.endMethod();
 	}
 	
 	private static Method getMethodByDescriptor(Class<?> clazz, String descriptor) {
@@ -293,23 +368,64 @@ public class NMSAsm {
             Parameter param = method.getParameters()[i];
             adapter.loadInsn(argumentType, index);
             if(!Type.getType(param.getType()).equals(argumentType)) {
+            	
             	adapter.checkCast(Type.getType(param.getType()));
             }
             index += argumentType.getSize();
         }
 	}
 	
-	private static void loadArgs(GeneratorAdapter adapter, Constructor<?> method) {
+//	private static void loadArgsForConstructor(GeneratorAdapter adapter, Constructor<?> method) {
+//		int index = adapter.getArgIndex(0);
+//		for (int i = 0; i < adapter.argumentTypes.length; ++i) {
+//            Type argumentType = adapter.argumentTypes[i];
+//            Parameter param = method.getParameters()[i];
+//            adapter.loadInsn(argumentType, index);
+//            if(!Type.getType(param.getType()).equals(argumentType)) {
+//            	adapter.checkCast(Type.getType(param.getType()));
+//            }
+//            index += argumentType.getSize();
+//        }
+//	}
+	
+	
+	private static void loadArgsForConstructor(GeneratorAdapter adapter, Constructor<?> method) {
 		int index = adapter.getArgIndex(0);
 		for (int i = 0; i < adapter.argumentTypes.length; ++i) {
-            Type argumentType = adapter.argumentTypes[i];
-            Parameter param = method.getParameters()[i];
-            adapter.loadInsn(argumentType, index);
-            if(!Type.getType(param.getType()).equals(argumentType)) {
-            	adapter.checkCast(Type.getType(param.getType()));
+			
+            Type currentType = adapter.argumentTypes[i];
+            Parameter wantedParam = method.getParameters()[i];
+            adapter.loadInsn(currentType, index);
+            Class<?> currentTypeClass = null;
+			try {
+				currentTypeClass = Class.forName(currentType.getClassName());
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+            
+            
+			Type implType = getImplType(currentTypeClass);
+            if(!Type.getType(wantedParam.getType()).equals(currentType)) {
+            	if(normalToNMS.get(currentTypeClass).equals(wantedParam.getType())) {
+            		adapter.checkCast(implType);
+            		adapter.getField(implType, "handle", GeneratorAdapter.OBJECT_TYPE);
+            	}
+            	adapter.checkCast(Type.getType(wantedParam.getType()));
             }
-            index += argumentType.getSize();
+            
+            
+            
+            index += currentType.getSize();
         }
+	}
+	
+	private static void debugArg(GeneratorAdapter adapter, int index, Type implType) {
+		adapter.getStatic(Type.getObjectType("java/lang/System"), "out", Type.getObjectType("java/io/PrintStream"));
+		adapter.loadArg(index);
+		adapter.checkCast(implType);
+		adapter.getField(implType, "handle", GeneratorAdapter.OBJECT_TYPE);
+		adapter.invokeVirtual(Type.getObjectType("java/io/PrintStream"), new me.acablade.nmsasm.Method("println", "(Ljava/lang/Object;)V"));
 	}
 	
 	private static List<String> getClassesFromClassGraph(String name){
@@ -362,7 +478,7 @@ public class NMSAsm {
 		if(!registered.containsKey(clazz)) throw new NMSException(String.format("Class (%s) is not registered.", clazz.getCanonicalName()));
 		Class<T> clz = (Class<T>) registered.get(clazz);
 		
-		for(Constructor constructor : clz.getConstructors()) {
+		for(Constructor<?> constructor : clz.getConstructors()) {
 			if(constructor.getParameterCount() == objects.length)
 				try {
 					return (T) constructor.newInstance(objects);
@@ -377,7 +493,7 @@ public class NMSAsm {
 	}
 	
 	
-	private static List<Class<?>> getParameters(Class clazz, Method method){
+	private static List<Class<?>> getParameters(Class<?> clazz, Method method){
 		List<Class<?>> paramList = new ArrayList<>();
 		for(Parameter param: method.getParameters()) {
 			if(!param.isAnnotationPresent(NMS.class)) {

@@ -5,12 +5,13 @@ import me.acablade.nmsasm.NMS;
 import me.acablade.nmsasm.NMSConstructor;
 import me.acablade.nmsasm.testplugin.nms.Entity;
 import me.acablade.nmsasm.testplugin.nms.EntityLiving;
+import me.acablade.nmsasm.testplugin.nms.World;
 
 @NMS("EntityEnderDragon")
 public interface EntityEnderDragonv1_8 {
 	
 	@NMSConstructor
-	public void create(@NMS("nms.World") Object world);
+	public void create(World world);
 	
 	@NMS(value = "setPosition", interfaceClass = Entity.class)
 	public void pos(double x, double y, double z);
