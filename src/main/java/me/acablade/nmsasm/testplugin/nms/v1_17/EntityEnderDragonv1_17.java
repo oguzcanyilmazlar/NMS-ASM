@@ -11,7 +11,7 @@ import me.acablade.nmsasm.testplugin.nms.World;
 public interface EntityEnderDragonv1_17 {
 	
 	@NMSConstructor
-	public void create(@NMS("nms.EntityTypes") Object entityTypes, @NMS("nms.World") Object world);
+	public void create(EntityTypesv1_17<? extends EntityEnderDragonv1_17> entityTypes, World world);
 	
 	
 	@NMS(value = "setPosition", interfaceClass = Entity.class)
